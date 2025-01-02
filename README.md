@@ -318,7 +318,7 @@ class NovaEstrategia:
 
 ## Licença
 
-MIT License - veja [LICENSE](LICENSE) para detalhes.
+Apache 2.0 License - veja [LICENSE](LICENSE) para detalhes.
 
 ## Citação
 
