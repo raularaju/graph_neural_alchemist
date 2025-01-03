@@ -376,8 +376,7 @@ def main(datasets):
             
             tb_logger.log_hyperparams(vars(args))
             
-            fast_dev_run = args.fast_dev_run_batches if args.fast_dev_run else False                            
-            ckpt_path = None if args.fast_dev_run else "best"
+            fast_dev_run = args.fast_dev_run_batches if args.fast_dev_run else False
             
             trainer = Trainer(
                 callbacks=callbacks,
@@ -393,7 +392,8 @@ def main(datasets):
             modulo = LightningGNN(args, model)            
             trainer.fit(modulo, train_dataloaders=train_dataloader)
             
-            trainer.test(dataloaders=test_dataloader, verbose=True, ckpt_path= ckpt_path)
+            if not args.fast_dev_run:                           
+                trainer.test(dataloaders=test_dataloader, verbose=True, ckpt_path= "best")
             
             main_logger.info(f"Tempo de execução: {(time.time() - inicio):.2f} segundos")
             
