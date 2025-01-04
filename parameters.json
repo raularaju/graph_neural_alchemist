@@ -2,4 +2,13 @@
     "datasets": [
         "Strawberry"        
     ]
+    ,
+    "valid_strategies": [
+        "op",
+        "encoded_gtpo", 
+        "vg",
+        "simtsc",
+        "pearson",
+        "time2graphplus"
+    ]
 }

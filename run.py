@@ -129,10 +129,12 @@ def main(datasets):
             args.train_path = f"{ROOT_PATH}/{dataset}/{dataset}_TRAIN.tsv"
             args.test_path = f"{ROOT_PATH}/{dataset}/{dataset}_TEST.tsv" 
             
-            if args.strategy not in ["op", "vg", "simtsc", "time2graph", "time2graphplus", "encoded_gtpo"]:
+            with open('parameters.json') as f:
+                params = json.load(f)
+            
+            if args.strategy not in params["valid_strategies"]:
                 main_logger.error(f"Time2Graph strategy {args.strategy} não implementada")
                 return
-            
             if(args.strategy == "op"):            
                 args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs/{dataset}_oplength_{args.op_length}"                
                 dataset_train = GTPODataset(
@@ -242,7 +244,11 @@ def main(datasets):
                     num_workers=28
                 )
             
-            elif(args.strategy in ["simtsc"]):                
+            elif(args.strategy in ["simtsc"]):
+                if(args.model not in ["simTSC_GCN", "simTSC_SAGE"]):
+                    main_logger.error(f"Modelo {args.model} não implementado para estratégia {args.strategy}. Favor usar simTSC_GCN ou simTSC_SAGE")
+                    return
+                
                 args.dataset_path = f"{ROOT_PATH}/simtsc/{args.strategy}_matrix/{dataset}"               
 
                 dataset_train = TimeSeriesDataset(                    

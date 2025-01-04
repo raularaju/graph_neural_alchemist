@@ -373,3 +373,141 @@ Para questões e sugestões:
 - Abra uma issue no repositório
 - Email: paulohdscoelho@dcc.ufmg.br
 - Linkedin: https://www.linkedin.com/in/paulohdscoelho/
+
+## Configuração dos Experimentos
+
+### Arquivo parameters.json
+
+O framework utiliza um arquivo `parameters.json` para configurar os datasets e estratégias válidas. Este arquivo deve estar na raiz do projeto:
+
+```json
+{
+    "datasets": [
+        "Strawberry",
+        "ECG200",
+        "Coffee"
+    ],
+    "valid_strategies": [
+        "op",
+        "encoded_gtpo", 
+        "vg",
+        "simtsc",
+        "pearson",
+        "time2graphplus"
+    ]
+}
+```
+
+#### Campos do parameters.json:
+
+- **datasets**: Lista de datasets a serem processados
+  - Cada dataset deve ter seus arquivos TSV correspondentes em `{root_path}/{dataset}/`
+  - Formato: `["{dataset1}", "{dataset2}", ...]`
+
+- **valid_strategies**: Lista de estratégias de conversão série-grafo válidas
+  - `"op"`: Grafos de Padrões Ordinais
+  - `"encoded_gtpo"`: GTPO Codificado
+  - `"vg"`: Grafos de Visibilidade
+  - `"simtsc"`: SimTSC
+  - `"pearson"`: Grafos de Covariância
+  - `"time2graphplus"`: Time2Graph+
+
+### Estrutura de Diretórios
+
+```
+projeto/
+├── parameters.json
+├── data/
+│   ├── dataset1/
+│   │   ├── dataset1_TRAIN.tsv
+│   │   └── dataset1_TEST.tsv
+│   └── dataset2/
+│       ├── dataset2_TRAIN.tsv
+│       └── dataset2_TEST.tsv
+```
+
+### Execução com parameters.json
+
+1. **Configurar Datasets**:
+   ```json
+   {
+       "datasets": ["Strawberry", "ECG200"]
+   }
+   ```
+
+2. **Executar Experimento**:
+   ```bash
+   python run.py --strategy vg --model SAGE_MLPP_4layer
+   ```
+   - O script processará automaticamente todos os datasets listados em parameters.json
+
+3. **Validação de Estratégias**:
+   - O framework verifica se a estratégia fornecida está em `valid_strategies`
+   - Se uma estratégia inválida for usada, um erro será registrado
+
+### Exemplos de Uso
+
+1. **Processamento Múltiplo**:
+   ```json
+   {
+       "datasets": [
+           "Strawberry",
+           "ECG200",
+           "Coffee"
+       ]
+   }
+   ```
+   ```bash
+   python run.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32
+   ```
+
+2. **Teste Rápido**:
+   ```json
+   {
+       "datasets": ["Strawberry"]
+   }
+   ```
+   ```bash
+   python run.py --strategy vg --model SAGE_MLPP_4layer --fast_dev_run
+   ```
+
+3. **Experimento Completo**:
+   ```json
+   {
+       "datasets": [
+           "Strawberry",
+           "ECG200",
+           "Coffee",
+           "GunPoint"
+       ]
+   }
+   ```
+   ```bash
+   python run.py --strategy vg --model SAGE_MLPP_4layer --epochs 250 --early_stopping
+   ```
+
+### Logs e Monitoramento
+
+- Os resultados são salvos em diretórios específicos para cada dataset
+- Logs detalhados são gerados em `logs/YYYY-MM-DD_main.log`
+- Métricas são visualizáveis via TensorBoard:
+  ```bash
+  tensorboard --logdir lightning_logs
+  ```
+
+### Dicas de Uso
+
+1. **Desenvolvimento e Testes**:
+   - Use um único dataset durante o desenvolvimento
+   - Ative `--fast_dev_run` para testes rápidos
+   - Use `--detect_anomaly` para debugging
+
+2. **Experimentos Completos**:
+   - Liste todos os datasets desejados em parameters.json
+   - Use `--early_stopping` para otimizar o tempo de treinamento
+   - Monitore via TensorBoard para acompanhar o progresso
+
+3. **Customização**:
+   - Adicione novas estratégias em `valid_strategies`
+   - Organize datasets em subdiretórios apropriados
+   - Mantenha a nomenclatura padrão dos arquivos TSV
