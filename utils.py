@@ -15,7 +15,6 @@ from sklearn.preprocessing import OneHotEncoder
 import ordpy
 
 import dgl.function as fn
-from torch_geometric.data import Data
 
 def get_onehotencoder(train_path, test_path, op_length=3):
     """
@@ -68,13 +67,6 @@ def collate_fn(batch):
     batch_tensor = torch.tensor(batch_tensor, dtype=torch.long)
 
     return batched_graph, labels, batch_tensor
-
-def dgl_to_pyg(dgl_graph, batch):
-    edge_index = torch.stack(dgl_graph.edges())
-    x = dgl_graph.ndata['feat']
-    edge_weight = dgl_graph.edata['weight']    
-    pyg_data = Data(x=x, edge_index=edge_index, edge_attr=edge_weight, batch=batch)    
-    return pyg_data
 
 def compute_pagerank(graph, N=100, K=10, DAMP=0.85):
     """

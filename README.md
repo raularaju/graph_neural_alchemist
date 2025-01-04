@@ -8,6 +8,30 @@ Este framework foi utilizado em parte para o artigo ["Graph Neural Alchemist: An
 
 O framework permite acompanhar o treinamento através do PyTorch Lightning, que oferece poder para visualizar as métricas de cada época, bem como flags específicas para debugar o modelo. Para visualizar em tempo real o desempenho dos modelos a cada experimento, é possível acompanhar pelo TensorBoard, uma vez que esse framework implementa também essa ferramenta.
 
+## Sumário
+
+- [Abordagens Implementadas](#abordagens-implementadas)
+  - [Grafos de Visibilidade (VG)](#grafos-de-visibilidade-vg)
+  - [Grafos de Padrões Ordinais (GTPO)](#grafos-de-padrões-ordinais-gtpo)
+  - [SimTSC](#simtsc)
+  - [Time2Graph/Time2Graph+](#time2graphtime2graph)
+  - [GTPO Codificado](#gtpo-codificado)
+  - [Grafos de Covariância](#grafos-de-covariância)
+- [Arquiteturas de GNN Disponíveis](#arquiteturas-de-gnn-disponíveis)
+  - [SAGE_MLPP_4layer](#sage_mlpp_4layer)
+  - [GAT_MLPP](#gat_mlpp)
+  - [SAGE_NodeClassification](#sage_nodeclassification)
+  - [SimTSC_GCN](#simtsc_gcn)
+  - [SimTSC_SAGE](#simtsc_sage)
+- [Extensibilidade dos Modelos](#extensibilidade-dos-modelos)
+- [Requisitos e Instalação](#requisitos-e-instalação)
+- [Estrutura dos Dados](#estrutura-dos-dados)
+- [Execução de Experimentos](#execução-de-experimentos)
+- [Guia de Contribuição](#guia-de-contribuição)
+- [Licença](#licença)
+- [Citação](#citação)
+- [Contato](#contato)
+
 ## Abordagens Implementadas
 
 1. **Grafos de Visibilidade (VG)**
@@ -147,24 +171,35 @@ Todos os modelos devem ser compatíveis com o pipeline de treinamento do PyTorch
 
 ## Requisitos e Instalação
 
-### Dependências Principais
-- Python 3.8+
-- PyTorch >= 1.9.0
-- DGL (Deep Graph Library) >= 0.9.0
-- PyTorch Lightning >= 2.0.0
-- NumPy >= 1.21.0
-- scikit-learn >= 1.0.0
+Para melhor eficiência, é recomendado utilizar GPUs para acelerar o treinamento.
 
-### Instalação
+### Dependências de Sistema
 
-```bash
-# Clone o repositório
-git clone https://github.com/seu-usuario/graph-neural-alchemist.git
-cd graph-neural-alchemist
+- **Docker**: Certifique-se de que o Docker está instalado e em execução. Você pode instalar o Docker seguindo as instruções oficiais [aqui](https://docs.docker.com/engine/install/).
+- **NVIDIA Container Toolkit**: Necessário para suporte a GPU. Instale seguindo as instruções [aqui](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).   
 
-# Instale as dependências
-pip install -r requirements.txt
-```
+### Construir e Executar a Imagem Docker
+
+1. **Construir a Imagem Docker**:
+   ```bash
+   docker build -t graph-neural-alchemist .
+   ```
+
+2. **Executar o Container Docker**:
+   ```bash
+   docker run --gpus all -it --rm -v $(pwd):/app graph-neural-alchemist
+   ```
+
+   - `--gpus all`: Habilita o uso de todas as GPUs disponíveis.
+   - `-it`: Abre um terminal interativo.
+   - `--rm`: Remove o container após a execução.
+   - `-v $(pwd):/app`: Monta o diretório atual no diretório `/app` dentro do container.
+
+3. **Verificar a Instalação**:
+   Dentro do container, execute:
+   ```bash
+   python -c "import torch; import dgl; print(f'CUDA disponível: {torch.cuda.is_available()}'); print(f'DGL versão: {dgl.__version__}')"
+   ```
 
 ## Estrutura dos Dados
 
@@ -241,7 +276,6 @@ Além disso, é possível utilizar funções de debug específicas do PyTorch Li
 - `--overfit_batches N`: Treina repetidamente em N batches para verificar se o modelo tem capacidade de overfit. Útil para verificar se o modelo está generalizando bem.
 
 Para mais detalhes sobre debugging no PyTorch Lightning, consulte: https://lightning.ai/docs/pytorch/stable/debug/debugging.html
-
 
 Exemplo de uso:
 ```bash

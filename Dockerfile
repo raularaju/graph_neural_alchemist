@@ -1,33 +1,42 @@
 # Use NVIDIA CUDA base image
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH=/usr/local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
-ENV CUDA_HOME=/usr/local/cuda
+ENV PIP_NO_CACHE_DIR=1
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    python3.9 \
-    python3-pip \
-    git \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
+    git \
+    build-essential \
+    python3-pip \
+    python3-dev \
+    tmux \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Upgrade pip and install build tools
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+# Install CUDA toolkit
+RUN pip install nvidia-cudnn-cu12==8.9.2.26
+
+# Install PyTorch and DGL with CUDA support first
+RUN pip install torch==2.2.1 torchvision==0.17.1 torchaudio --index-url https://download.pytorch.org/whl/cu121
+RUN pip install dgl -f https://data.dgl.ai/wheels/cu121/repo.html
+
+# Copy requirements file
+COPY requirements.txt /tmp/requirements.txt
+
+# Install Python dependencies in stages to better handle failures
+RUN pip install -r /tmp/requirements.txt
+# Create working directory
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
-
-# Install PyTorch with CUDA support
-RUN pip3 install torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu118
-
-# Copy the rest of the application
-COPY . .
+# Copy project files
+COPY . /app/
 
 # Set default command
-CMD ["python3", "run.py"]
+CMD ["bash"]

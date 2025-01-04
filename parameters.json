@@ -1,20 +1,5 @@
 {
     "datasets": [
-        "Crop",
-        "ECG200",
-        "ECGFiveDays",
-        "Earthquakes",
-        "ElectricDevices",
-        "NonInvasiveFetalECGThorax1",
-        "NonInvasiveFetalECGThorax2",
-        "Phoneme",
-        "Strawberry",
-        "TwoLeadECG",
-        "1dAVb",
-        "AF",
-        "LBBB",
-        "RBBB",
-        "SB",
-        "ST"
+        "Strawberry"        
     ]
 }
