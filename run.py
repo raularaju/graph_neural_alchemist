@@ -57,6 +57,9 @@ main_logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 main_logger.addHandler(console_handler)
 
+with open("parameters.json", "r") as f:
+    PROJECT_PARAMS = json.load(f)
+
 def main(datasets):
     """
     Função principal que executa experimentos de classificação de séries temporais usando grafos.
@@ -129,10 +132,7 @@ def main(datasets):
             args.train_path = f"{ROOT_PATH}/{dataset}/{dataset}_TRAIN.tsv"
             args.test_path = f"{ROOT_PATH}/{dataset}/{dataset}_TEST.tsv" 
             
-            with open('parameters.json') as f:
-                params = json.load(f)
-            
-            if args.strategy not in params["valid_strategies"]:
+            if args.strategy not in PROJECT_PARAMS["valid_strategies"]:
                 main_logger.error(f"Time2Graph strategy {args.strategy} não implementada")
                 return
             if(args.strategy == "op"):            
@@ -407,9 +407,7 @@ def main(datasets):
             main_logger.error(f"Erro ao executar o dataset {dataset}: {e.__str__}:")
             main_logger.error(traceback.format_exc())
 
-if __name__ == "__main__":
-    #load the datasets from json file
-    with open("parameters.json", "r") as f:
-        parameters = json.load(f)    
-    datasets = parameters["datasets"]
+
+if __name__ == "__main__":     
+    datasets = PROJECT_PARAMS["datasets"]
     main(datasets)

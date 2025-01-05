@@ -10,19 +10,8 @@ O framework permite acompanhar o treinamento através do PyTorch Lightning, que 
 
 ## Sumário
 
-- [Abordagens Implementadas](#abordagens-implementadas)
-  - [Grafos de Visibilidade (VG)](#grafos-de-visibilidade-vg)
-  - [Grafos de Padrões Ordinais (GTPO)](#grafos-de-padrões-ordinais-gtpo)
-  - [SimTSC](#simtsc)
-  - [Time2Graph/Time2Graph+](#time2graphtime2graph)
-  - [GTPO Codificado](#gtpo-codificado)
-  - [Grafos de Covariância](#grafos-de-covariância)
-- [Arquiteturas de GNN Disponíveis](#arquiteturas-de-gnn-disponíveis)
-  - [SAGE_MLPP_4layer](#sage_mlpp_4layer)
-  - [GAT_MLPP](#gat_mlpp)
-  - [SAGE_NodeClassification](#sage_nodeclassification)
-  - [SimTSC_GCN](#simtsc_gcn)
-  - [SimTSC_SAGE](#simtsc_sage)
+- [Abordagens Implementadas](#abordagens-implementadas)  
+- [Arquiteturas de GNN Disponíveis](#arquiteturas-de-gnn-disponíveis) 
 - [Extensibilidade dos Modelos](#extensibilidade-dos-modelos)
 - [Requisitos e Instalação](#requisitos-e-instalação)
 - [Estrutura dos Dados](#estrutura-dos-dados)
@@ -187,14 +176,13 @@ Para melhor eficiência, é recomendado utilizar GPUs para acelerar o treinament
 
 2. **Executar o Container Docker**:
    ```bash
-   docker run --gpus all -it --rm -v $(pwd):/app graph-neural-alchemist
+   docker run --gpus all -it --rm -v data/datasets:/data/datasets graph-neural-alchemist
    ```
 
    - `--gpus all`: Habilita o uso de todas as GPUs disponíveis.
    - `-it`: Abre um terminal interativo.
-   - `--rm`: Remove o container após a execução.
-   - `-v $(pwd):/app`: Monta o diretório atual no diretório `/app` dentro do container.
-
+   - `--rm`: Remove o container após a execução.   
+   - `-v data/datasets:/data/datasets`: Monta o diretório `data/datasets` no diretório `/data/datasets` dentro do container
 3. **Verificar a Instalação**:
    Dentro do container, execute:
    ```bash
@@ -238,7 +226,7 @@ Defina os datasets a serem processados em `parameters.json`:
 
 ### 2. Execução Básica
 ```bash
-python run.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32  --nhid 128 --epochs 250 --save_dir vg_sage_mlpp_4layer --root_path data/dataset1
+python run.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32  --nhid 128 --epochs 250 --save_dir vg_sage_mlpp_4layer --root_path data/datasets
 ```
 
 ### 3. Parâmetros Principais
@@ -279,7 +267,7 @@ Para mais detalhes sobre debugging no PyTorch Lightning, consulte: https://light
 
 Exemplo de uso:
 ```bash
-python run.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32 --nhid 128 --epochs 250 --save_dir vg_sage_mlpp_4layer --root_path data/dataset1 --detect_anomaly --fast_dev_run_batches 10 --overfit_batches 10
+python run.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32 --nhid 128 --epochs 250 --save_dir vg_sage_mlpp_4layer --root_path data/datasets --detect_anomaly --fast_dev_run_batches 10 --overfit_batches 10
 ```
 
 ## Guia de Contribuição
