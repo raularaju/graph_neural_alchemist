@@ -6,7 +6,7 @@ O Graph Neural Alchemist é um framework modular para classificação de séries
 
 Este framework foi utilizado em parte para o artigo ["Graph Neural Alchemist: An innovative fully modular architecture for time series-to-graph classification"](https://doi.org/10.48550/arXiv.2410.09307).
 
-O framework permite acompanhar o treinamento através do PyTorch Lightning, que oferece poder para visualizar as métricas de cada época, bem como flags específicas para debugar o modelo. Para visualizar em tempo real o desempenho dos modelos a cada experimento, é possível acompanhar pelo TensorBoard, uma vez que esse framework implementa também essa ferramenta.
+O framework permite acompanhar o treinamento através do PyTorch Lightning, que oferece poder para visualizar as métricas de cada época, bem como flags específicas para debugar o modelo. Para visualizar em tempo real o desempenho dos modelos a cada experimento, bem como as métricas de avaliação f1-score, matrizes de confusão, entre outras é possível acompanhar pelo TensorBoard.
 
 ## Sumário
 
