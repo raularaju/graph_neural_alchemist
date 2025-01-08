@@ -214,6 +214,10 @@ Siga estas diretrizes:
                # Adiciona features aos nós
                node_features = compute_node_features(graph, signal)
                graph.ndata['feat'] = node_features
+
+               # Caso o grafo seja ponderado, adicionar:
+               edge_weights = calcula_pesos(grafo) #lógica de cálculo de pesos
+               graph.edata['weights'] = edge_weights
                
                # Armazena grafo e rótulo
                self.graph.append(graph)
