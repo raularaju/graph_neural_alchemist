@@ -216,7 +216,7 @@ Siga estas diretrizes:
                graph.ndata['feat'] = node_features
 
                # Caso o grafo seja ponderado, adicionar:
-               edge_weights = calcula_pesos(grafo) #lógica de cálculo de pesos
+               edge_weights = compute_edge_weights(signal) #lógica de cálculo de pesos
                graph.edata['weights'] = edge_weights
                
                # Armazena grafo e rótulo
