@@ -214,6 +214,7 @@ class VisibiliyGraphDataset(dgl.data.DGLDataset):
             self.classes.append(y)
 
         self.classes = torch.LongTensor(self.classes)
+        
     def __getitem__(self, idx):
         return self.graph[idx], self.classes[idx]
 

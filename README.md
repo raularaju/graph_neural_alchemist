@@ -158,6 +158,106 @@ O framework foi projetado para ser facilmente extensível. Os modelos podem ser 
 
 Todos os modelos devem ser compatíveis com o pipeline de treinamento do PyTorch Lightning e seguir as convenções de entrada/saída do framework.
 
+### Implementando Novas Estratégias de Transformação
+
+O framework permite implementar novas estratégias de transformação de séries temporais em grafos através da extensão da classe `dgl.data.DGLDataset`.
+
+É fundamental que essa herança seja feita para que o pipeline funcione corretamente, pois os modelos esperam um objeto do tipo `dgl.DGLGraph` como entrada.
+Siga estas diretrizes:
+
+1. **Estrutura Básica**
+   ```python
+   class NovaEstrategiaDataset(dgl.data.DGLDataset):
+       def __init__(self, root, tsv_file, **kwargs):
+           self.root = root
+           self.data_type = "processed"
+           self.save_path = osp.join(self.root, self.data_type)
+           
+           # Carrega dados do arquivo TSV
+           with open(tsv_file, "r") as file:
+               self.__train_data = file.readlines()
+           
+           # Processa labels
+           self.labels = np.array([int(line.split("\t")[0]) 
+                                 for line in self.__train_data])
+           self.num_classes = len(np.unique(self.labels))
+           
+           # Inicializa listas para grafos e classes
+           self.graph = []
+           self.classes = []
+           
+           super().__init__(
+               name="NovaEstrategia",
+               raw_dir=root,
+               save_dir=self.save_path,
+               force_reload=False
+           )
+
+       def process(self):
+           """
+           Implementa a lógica de transformação série-grafo.
+           Este método deve:
+           1. Iterar sobre as séries temporais
+           2. Converter cada série em um grafo
+           3. Adicionar features aos nós/arestas
+           4. Armazenar grafos e rótulos
+           """
+           for data in tqdm(self.__train_data, desc="Processing"):
+               # Extrai label e sinal
+               label = int(data.split("\t")[0])
+               signal = np.array(data.split("\t")[1:]).astype(np.float32)
+               
+               # Implementa sua estratégia de conversão aqui
+               # Exemplo: criar grafo baseado em alguma propriedade da série
+               graph = create_graph(signal)  # método auxiliar
+               
+               # Adiciona features aos nós
+               node_features = compute_node_features(graph, signal)
+               graph.ndata['feat'] = node_features
+               
+               # Armazena grafo e rótulo
+               self.graph.append(graph)
+               self.classes.append(torch.tensor(label))
+           
+           self.classes = torch.stack(self.classes)
+
+   ```
+
+2. **Boas Práticas**
+   - Documente claramente a estratégia de transformação
+   - Use métodos auxiliares para organizar o código
+   - Implemente tratamento de erros robusto
+   - Otimize operações pesadas usando NumPy/PyTorch
+   - Mantenha consistência com outras estratégias do framework
+   - Adicione testes unitários para sua implementação
+
+3. **Exemplo de Uso**
+   ```python
+   # Registre sua estratégia em parameters.json
+   {
+       "valid_strategies": [
+           "nova_estrategia",
+           // ... outras estratégias ...
+       ]
+   }
+   
+   # Use na linha de comando
+   python run.py --strategy nova_estrategia --model SAGE_MLPP_4layer
+   ```
+
+4. **Validação da Implementação**
+   - Verifique se os grafos gerados são válidos
+   - Teste com diferentes tamanhos de série temporal
+   - Confirme que as features dos nós são apropriadas
+   - Valide o processo de save/load
+   - Compare resultados com outras estratégias
+
+5. **Integração com o Framework**
+   - Adicione sua estratégia ao módulo `datasets/`
+   - Atualize a documentação com detalhes da estratégia
+   - Forneça exemplos de uso e casos de teste
+   - Mantenha compatibilidade com o pipeline existente
+
 ## Requisitos e Instalação
 
 Para melhor eficiência, é recomendado utilizar GPUs para acelerar o treinamento.
