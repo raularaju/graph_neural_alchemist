@@ -135,6 +135,7 @@ def main(datasets):
             if args.strategy not in PROJECT_PARAMS["valid_strategies"]:
                 main_logger.error(f"Time2Graph strategy {args.strategy} não implementada")
                 return
+            
             if(args.strategy == "op"):            
                 args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs/{dataset}_oplength_{args.op_length}"                
                 dataset_train = GTPODataset(
@@ -211,23 +212,27 @@ def main(datasets):
             
             elif(args.strategy == "vg"):
                 args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{dataset}"
-                dataset_train = VisibiliyGraphDataset(
+                dataset_train = PreComputedVGDataset(
                     root=os.path.join(
                         args.dataset_path,                    
                         "train"                    
                     ),
                     tsv_file=args.train_path,
-                    directed="left_to_right",
+                    node_features_file=args.node_features_train_path,
+                    graphs_folder=args.graphs_train_folder,
+                    dataset_name=dataset,
                     weighted="sq_distance",
                 )
                 
-                dataset_test = VisibiliyGraphDataset(
+                dataset_test = PreComputedVGDataset(
                     root=os.path.join(
                         args.dataset_path,
                         "test"                    
                     ),
                     tsv_file=args.test_path,
-                    directed="left_to_right",
+                    node_features_file=args.node_features_test_path,
+                    graphs_folder=args.graphs_test_folder,
+                    dataset_name=dataset,
                     weighted="sq_distance",
                 )
                 
@@ -236,12 +241,12 @@ def main(datasets):
                 
                 train_dataloader = GraphDataLoader(
                     dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
-                    num_workers=28
+                    num_workers=0
                 )
                 
                 test_dataloader = GraphDataLoader(
                     dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
-                    num_workers=28
+                    num_workers=0
                 )
             
             elif(args.strategy in ["simtsc"]):

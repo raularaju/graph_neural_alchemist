@@ -219,5 +219,26 @@ def get_args():
         help="Diretório para salvar logs do PyTorch Lightning/TensorBoard"
     )
 
+    parser.add_argument(
+        "--graphs_test_folder",
+        type=str,
+        help="Caminho para a pasta dos grafos de teste"
+    )
+    parser.add_argument(
+        "--node_features_test_path",
+        type=str,
+        help="Caminho para o arquivo de características dos nós de teste"
+    )
+    parser.add_argument(
+        "--graphs_train_folder",
+        type=str,
+        help="Caminho para a pasta dos grafos de treino"
+    )
+    parser.add_argument(
+        "--node_features_train_path",
+        type=str,
+        help="Caminho para o arquivo de características dos nós de treino"
+    )
+
     args = parser.parse_args()
     return args

@@ -5,3 +5,4 @@ from .Time2GraphDataset import Time2GraphDataset
 from .TimeSeriesDataset import TimeSeriesDataset
 from .VisibiliyGraphDataset import VisibiliyGraphDataset
 from .encodedGTPODataset import encodedGTPODataset
+from .PreComputedVGDataset import PreComputedVGDataset

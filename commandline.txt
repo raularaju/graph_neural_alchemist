@@ -1,0 +1,4 @@
+SenhazonaBolada 8==D
+sudo docker build -t graph-neural-alchemist .
+sudo docker run --gpus all -it --rm -v /scratch/raularaju/POC/data:/app/data/datasets graph-neural-alchemist
+python run.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32  --nhid 128 --epochs 250 --save_dir vg_sage_mlpp_4layer --root_path data/datasets/UCRArchive_2018 --graphs_train_folder=data/datasets/visibility_graphs/Phoneme/TRAIN --node_features_train_path=data/datasets/node_features/Phoneme/Phoneme_TRAIN.csv --graphs_test_folder=data/datasets/visibility_graphs/Phoneme/TEST --node_features_test_path=data/datasets/node_features/Phoneme/Phoneme_TEST.csv
