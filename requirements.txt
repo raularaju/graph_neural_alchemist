@@ -191,6 +191,7 @@ omegaconf==2.3.0
 openpyxl==3.1.5
 openTSNE==1.0.2
 opt-einsum==3.3.0
+optuna
 ordered-set==4.1.0
 ordpy==1.1.3
 outdated==0.2.2

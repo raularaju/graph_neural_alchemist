@@ -1,8 +1,9 @@
 import os
 import torch
 import dgl
+import optuna
 from dgl.dataloading import GraphDataLoader
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DataLoader, Subset
 
 from LightningGNN import LightningGNN
 from lightning.pytorch.callbacks import ModelSummary
@@ -11,7 +12,10 @@ from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+
+from torchmetrics.functional import f1_score
 from time2graph.run_time2graph_plus import run_time2graphplus
+from sklearn.model_selection import KFold
 
 from datasets import *
 from models import *
@@ -60,7 +64,7 @@ main_logger.addHandler(console_handler)
 with open("parameters.json", "r") as f:
     PROJECT_PARAMS = json.load(f)
 
-def main(datasets):
+def main(dataset_name_list):
     """
     Função principal que executa experimentos de classificação de séries temporais usando grafos.
     
@@ -112,10 +116,10 @@ def main(datasets):
     
     main_logger.info("Using " + str(torch.cuda.device_count()) + " GPU(s)!")
     
-    for dataset in datasets:
+    for dataset_name in dataset_name_list:
         inicio = time.time()
-        main_logger.info(f"Dataset: {dataset}")
-        args.dataset = dataset
+        main_logger.info(f"Dataset: {dataset_name}")
+        args.dataset = dataset_name
         
         try:
             callbacks = [
@@ -129,15 +133,15 @@ def main(datasets):
                 main_logger.info(f"Using early stopping with patience {args.patience}")
                 callbacks.append(EarlyStopping(monitor="train_loss", patience=args.patience))            
 
-            args.train_path = f"{ROOT_PATH}/{dataset}/{dataset}_TRAIN.tsv"
-            args.test_path = f"{ROOT_PATH}/{dataset}/{dataset}_TEST.tsv" 
+            args.train_path = f"{ROOT_PATH}/{dataset_name}/{dataset_name}_TRAIN.tsv"
+            args.test_path = f"{ROOT_PATH}/{dataset_name}/{dataset_name}_TEST.tsv" 
             
             if args.strategy not in PROJECT_PARAMS["valid_strategies"]:
                 main_logger.error(f"Time2Graph strategy {args.strategy} não implementada")
                 return
             
             if(args.strategy == "op"):            
-                args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs/{dataset}_oplength_{args.op_length}"                
+                args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs/{dataset_name}_oplength_{args.op_length}"                
                 dataset_train = GTPODataset(
                     root=os.path.join(
                         args.dataset_path,                    
@@ -170,7 +174,7 @@ def main(datasets):
                 )            
 
             elif(args.strategy == "encoded_gtpo"):            
-                args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs_encoded/{dataset}_oplength_{args.op_length}"
+                args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs_encoded/{dataset_name}_oplength_{args.op_length}"
                 
                 if not os.path.exists(os.path.join(args.dataset_path, "train")):                
                     encoder = get_onehotencoder(args.train_path, args.test_path, args.op_length)
@@ -211,7 +215,7 @@ def main(datasets):
                 )            
             
             elif(args.strategy == "vg"):
-                args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{dataset}"
+                args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{dataset_name}"
                 dataset_train = PreComputedVGDataset(
                     root=os.path.join(
                         args.dataset_path,                    
@@ -220,8 +224,9 @@ def main(datasets):
                     tsv_file=args.train_path,
                     node_features_file=args.node_features_train_path,
                     graphs_folder=args.graphs_train_folder,
-                    dataset_name=dataset,
+                    dataset_name=dataset_name,
                     weighted="sq_distance",
+                    #indexes_file=args.indexes_train_file
                 )
                 
                 dataset_test = PreComputedVGDataset(
@@ -232,8 +237,9 @@ def main(datasets):
                     tsv_file=args.test_path,
                     node_features_file=args.node_features_test_path,
                     graphs_folder=args.graphs_test_folder,
-                    dataset_name=dataset,
+                    dataset_name=dataset_name,
                     weighted="sq_distance",
+                    #indexes_file=args.indexes_train_file
                 )
                 
                 args.num_features = dataset_train.num_features            
@@ -254,7 +260,7 @@ def main(datasets):
                     main_logger.error(f"Modelo {args.model} não implementado para estratégia {args.strategy}. Favor usar simTSC_GCN ou simTSC_SAGE")
                     return
                 
-                args.dataset_path = f"{ROOT_PATH}/simtsc/{args.strategy}_matrix/{dataset}"               
+                args.dataset_path = f"{ROOT_PATH}/simtsc/{args.strategy}_matrix/{dataset_name}"               
 
                 dataset_train = TimeSeriesDataset(                    
                     tsv_file=args.train_path,
@@ -274,7 +280,7 @@ def main(datasets):
                 )    
                 
             elif(args.strategy == "pearson"):
-                args.dataset_path = f"{ROOT_PATH}/pearson/{dataset}"
+                args.dataset_path = f"{ROOT_PATH}/pearson/{dataset_name}"
                 args.R = 8
                 dataset_train = CovarianceGraphDataset(
                     root=os.path.join(
@@ -308,8 +314,8 @@ def main(datasets):
                 )
 
             elif(args.strategy == "time2graph"):
-                args.dataset_path = f"{ROOT_PATH}/time2graph/{dataset}"
-                args.dataset = dataset
+                args.dataset_path = f"{ROOT_PATH}/time2graph/{dataset_name}"
+                args.dataset = dataset_name
                 args.K = 50
                 args.C = 800
                 args.seg_length = 24
@@ -351,7 +357,7 @@ def main(datasets):
                 )
             
             elif(args.strategy == "time2graphplus"):
-                args.dataset_path = f"{ROOT_PATH}/time2graphplus/{dataset}"
+                args.dataset_path = f"{ROOT_PATH}/time2graphplus/{dataset_name}"
                 args.K = 50
                 args.C = 800
                 args.seg_length = 24
@@ -360,7 +366,7 @@ def main(datasets):
                 args.percentile = 80
                 args.alpha = 0.1
                 args.beta = 0.05
-                args.save_dir = os.path.join("lightning_logs", args.save_dir, dataset)               
+                args.save_dir = os.path.join("lightning_logs", args.save_dir, dataset_name)               
                 
                 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
                 
@@ -374,22 +380,31 @@ def main(datasets):
                 main_logger.error(f"Modelo não definido")
                 return
             
-            model = eval(args.model)(args)
-
-            logs_name_path = os.path.join(dataset, args.model)
+            run_train_test(dataset_name, callbacks, train_dataloader, test_dataloader)
             
-            tb_logger = TensorBoardLogger(
+            main_logger.info(f"Tempo de execução: {(time.time() - inicio):.2f} segundos")
+            
+        except Exception as e:            
+            main_logger.error(f"Erro ao executar o dataset {dataset_name}: {e.__str__}:")
+            main_logger.error(traceback.format_exc())
+
+def run_train_test(dataset_name, callbacks, train_dataloader, test_dataloader):
+    model = eval(args.model)(args)
+
+    logs_name_path = os.path.join(dataset_name, args.model)
+            
+    tb_logger = TensorBoardLogger(
                 save_dir=os.path.join("lightning_logs", args.save_dir),
                 name=logs_name_path,
                 log_graph=False,
                 default_hp_metric=False,                               
             )
             
-            tb_logger.log_hyperparams(vars(args))
+    tb_logger.log_hyperparams(vars(args))
             
-            fast_dev_run = args.fast_dev_run_batches if args.fast_dev_run else False
+    fast_dev_run = args.fast_dev_run_batches if args.fast_dev_run else False
             
-            trainer = Trainer(
+    trainer = Trainer(
                 callbacks=callbacks,
                 logger=tb_logger,
                 max_epochs=args.epochs,
@@ -400,19 +415,13 @@ def main(datasets):
                 log_every_n_steps = 20,
             )
 
-            modulo = LightningGNN(args, model)            
-            trainer.fit(modulo, train_dataloaders=train_dataloader)
+    modulo = LightningGNN(args, model)            
+    trainer.fit(modulo, train_dataloaders=train_dataloader)
             
-            if not args.fast_dev_run:                           
-                trainer.test(dataloaders=test_dataloader, verbose=True, ckpt_path= "best")
-            
-            main_logger.info(f"Tempo de execução: {(time.time() - inicio):.2f} segundos")
-            
-        except Exception as e:            
-            main_logger.error(f"Erro ao executar o dataset {dataset}: {e.__str__}:")
-            main_logger.error(traceback.format_exc())
+    if not args.fast_dev_run:                           
+        trainer.test(dataloaders=test_dataloader, verbose=True, ckpt_path= "best")
 
 
 if __name__ == "__main__":     
-    datasets = PROJECT_PARAMS["datasets"]
-    main(datasets)
+    dataset_name_list = PROJECT_PARAMS["datasets"]
+    main(dataset_name_list)
