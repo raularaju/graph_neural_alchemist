@@ -82,6 +82,12 @@ def get_args():
         help="Caminho para o arquivo de teste (formato TSV)"
     )
     parser.add_argument(
+        "--tsv_path", 
+        type=str, 
+        default="", 
+        help="Caminho para o arquivo com as séries (formato TSV)"
+    )
+    parser.add_argument(
         "--dataset", 
         type=str,        
         help="Nome do dataset a ser utilizado. Se não fornecido, será extraído do nome do arquivo de treino"
@@ -239,6 +245,23 @@ def get_args():
         type=str,
         help="Caminho para o arquivo de características dos nós de treino"
     )
+    parser.add_argument(
+        "--node_features_path",
+        type=str,
+        help="Caminho para o arquivo de características dos nós"
+    )
+    parser.add_argument(
+        "--graphs_folder",
+        type=str,
+        help="Caminho para a pasta dos grafos"
+    )
+    parser.add_argument(
+        "--indices_path",
+        type=str,
+        help="Caminho para índices"
+    )
+
+
 
     args = parser.parse_args()
     return args

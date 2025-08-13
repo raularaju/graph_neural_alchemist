@@ -11,6 +11,8 @@ from datasets import *
 from models import *
 from utils import get_onehotencoder
 from sklearn.preprocessing import OneHotEncoder
+import optuna
+from config import get_args
 
 
 def get_model_hyperparams(trial, model_name):
@@ -41,9 +43,7 @@ def get_dataset_hyperparams(trial, strategy):
         }
     
     elif strategy == "vg":
-        return {
-            "weighted": trial.suggest_categorical("weighted", ["sq_distance", "distance", "none"])
-        }
+        return {}
     
     elif strategy == "pearson":
         return {
@@ -119,15 +119,14 @@ def create_datasets_with_hyperparams(base_args, dataset_hyperparams, trial_id):
             encoder=encoder,
             op_length=args.op_length,
         )
-        
     elif args.strategy == "vg":
+        print(f"\n\n Train path: {args.train_path} \n\n")
         dataset_train = PreComputedVGDataset(
             root=os.path.join(args.dataset_path, "train"),
             tsv_file=args.train_path,
             node_features_file=args.node_features_train_path,
             graphs_folder=args.graphs_train_folder,
             dataset_name=args.dataset,
-            weighted=args.weighted,
         )
         dataset_test = PreComputedVGDataset(
             root=os.path.join(args.dataset_path, "test"),
@@ -135,7 +134,6 @@ def create_datasets_with_hyperparams(base_args, dataset_hyperparams, trial_id):
             node_features_file=args.node_features_test_path,
             graphs_folder=args.graphs_test_folder,
             dataset_name=args.dataset,
-            weighted=args.weighted,
         )
         
     elif args.strategy == "pearson":
@@ -333,10 +331,8 @@ def create_objective_complete(base_args, model_class, strategy):
 def run_hyperparameter_search(base_args, model_class, strategy, n_trials=30):
     """Executa busca de hiperparâmetros completa."""
     
-    import optuna
-    
     print(f"Iniciando busca de hiperparâmetros")
-    print(f"Dataset: {base_args.dataset}")
+    print(f"Args: {base_args}")
     print(f"Estratégia: {strategy}")
     print(f"Modelo: {model_class}")
     print(f"Número de trials: {n_trials}")
@@ -367,21 +363,22 @@ def run_hyperparameter_search(base_args, model_class, strategy, n_trials=30):
 
 if __name__ == "__main__":
     # Exemplo de uso
-    from config import get_args
     
     args = get_args()
     
     # Configura parâmetros base
     args.dataset = "Phoneme"
     args.strategy = "vg"  
-    args.epochs = 100
+    args.epochs = 250
+    ROOT_PATH = args.root_path
+    args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{args.dataset}"
     
     # Executa busca
     best_params, best_score = run_hyperparameter_search(
         args, 
         "SAGE_MLPP_4layer", 
         "vg", 
-        n_trials=30
+        n_trials=1
     )
     
     print(f"\nBusca finalizada!")

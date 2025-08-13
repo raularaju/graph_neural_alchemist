@@ -57,7 +57,7 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
     ):
         print("Creating dataset...")
         self.root = root
-        self.num_features = 9
+        self.num_features = 7
         self.data_type = "processed"
         self.save_path = osp.join(self.root, self.data_type)
         self.node_features = self.features_df = pd.read_csv(node_features_file, index_col=0)

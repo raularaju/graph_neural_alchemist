@@ -64,6 +64,21 @@ main_logger.addHandler(console_handler)
 with open("parameters.json", "r") as f:
     PROJECT_PARAMS = json.load(f)
 
+
+def get_model_hyperparams(trial, model_name):
+    """Define espaço de busca para hiperparâmetros do modelo."""
+    
+    if model_name == "SAGE_MLPP_4layer":
+        return {
+            "nhid": trial.suggest_categorical("nhid", [32, 64, 128, 256]),
+            "agg_type": trial.suggest_categorical("agg_type", ["mean", "max", "lstm"]),
+            "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
+            "batch_size": trial.suggest_categorical("batch_size", [16, 32, 64]),
+        }
+    else:
+        raise ValueError(f"Modelo desconhecido: {model_name}")
+
+
 def main(dataset_name_list):
     """
     Função principal que executa experimentos de classificação de séries temporais usando grafos.
@@ -216,31 +231,27 @@ def main(dataset_name_list):
             
             elif(args.strategy == "vg"):
                 args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{dataset_name}"
-                dataset = PreComputedVGDataset(
-                    root=os.path.join(
-                        args.dataset_path,                    
-                        "train"                    
-                    ),
-                    tsv_file=args.train_path,
-                    node_features_file=args.node_features_train_path,
-                    graphs_folder=args.graphs_train_folder,
+                dataset_unfiltered = PreComputedVGDataset(
+                    root=args.dataset_path,                                        
+                    tsv_file=args.tsv_path,
+                    node_features_file=args.node_features_path,
+                    graphs_folder=args.graphs_folder,
                     dataset_name=dataset_name,
-                    #indexes_file=args.indexes_train_file
                 )
+
+                with open(args.indices_path, "r") as f:
+                    indices = [int(line.strip()) for line in f if line.strip()]
                 
+                dataset = Subset(dataset_unfiltered, indices)
                 
                 args.num_features = dataset.num_features            
                 args.num_classes = dataset.num_classes
                 
-                train_dataloader = GraphDataLoader(
+                dataloader = GraphDataLoader(
                     dataset, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
                     num_workers=0
                 )
-                
-                test_dataloader = GraphDataLoader(
-                    dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
-                    num_workers=0
-                )
+
             
             elif(args.strategy in ["simtsc"]):
                 if(args.model not in ["simTSC_GCN", "simTSC_SAGE"]):
