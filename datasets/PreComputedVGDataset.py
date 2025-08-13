@@ -20,7 +20,6 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
         root (str): Diretório raiz do dataset.
         tsv_file (str): Caminho para o arquivo TSV contendo o dataset, no formato [rótulo \t sinal].
         directed (str, opcional): Direção das arestas do grafo de visibilidade. Padrão é "left_to_right". Use None para grafos não direcionados.
-        weighted (str, opcional): Esquema de pesos para as arestas do grafo de visibilidade. Padrão é "sq_distance".
 
     Atributos:
         root (str): Diretório raiz do dataset.
@@ -32,7 +31,6 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
         classes (list): Lista de rótulos de classe para cada grafo.
 
     Propriedades:
-        weighted (str): Esquema de pesos para as arestas do grafo de visibilidade.
         save_path (str): Caminho para salvar os dados processados.
         data_type (str): Tipo do dataset.
         labels (numpy.ndarray): Array de rótulos para cada amostra de dados.
@@ -56,7 +54,6 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
         node_features_file,
         graphs_folder,
         dataset_name,
-        weighted="sq_distance",
     ):
         print("Creating dataset...")
         self.root = root
@@ -81,7 +78,6 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
         self.graph = []
         self.classes = []
 
-        self.weighted = weighted
 
         super().__init__(
             name="VGDatasetDGL",
@@ -98,18 +94,6 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
 
     def download(self):
         pass
-
-    @property
-    def weighted(self):
-        return self.__weighted
-
-    @weighted.setter
-    def weighted(self, weighted):
-        if weighted == None:
-            self.__weighted = None
-        else:
-            self.__weighted = weighted
-
 
     @property
     def save_path(self):

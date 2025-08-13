@@ -142,7 +142,7 @@ def main(dataset_name_list):
             
             if(args.strategy == "op"):            
                 args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs/{dataset_name}_oplength_{args.op_length}"                
-                dataset_train = GTPODataset(
+                dataset = GTPODataset(
                     root=os.path.join(
                         args.dataset_path,                    
                         "train"                    
@@ -160,11 +160,11 @@ def main(dataset_name_list):
                     op_length=args.op_length,
                 )
                 
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
+                args.num_features = dataset.num_features            
+                args.num_classes = dataset.num_classes
                 
                 train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                    dataset, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
                     num_workers=28
                 )
                 
@@ -181,7 +181,7 @@ def main(dataset_name_list):
                 else:
                     encoder = OneHotEncoder(sparse_output=False)
                 
-                dataset_train = encodedGTPODataset(
+                dataset = encodedGTPODataset(
                     root=os.path.join(
                         args.dataset_path,                    
                         "train"                    
@@ -201,11 +201,11 @@ def main(dataset_name_list):
                     op_length=args.op_length,
                 )
                 
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
+                args.num_features = dataset.num_features            
+                args.num_classes = dataset.num_classes
                 
                 train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                    dataset, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
                     num_workers=28
                 )
                 
@@ -216,7 +216,7 @@ def main(dataset_name_list):
             
             elif(args.strategy == "vg"):
                 args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{dataset_name}"
-                dataset_train = PreComputedVGDataset(
+                dataset = PreComputedVGDataset(
                     root=os.path.join(
                         args.dataset_path,                    
                         "train"                    
@@ -228,23 +228,12 @@ def main(dataset_name_list):
                     #indexes_file=args.indexes_train_file
                 )
                 
-                dataset_test = PreComputedVGDataset(
-                    root=os.path.join(
-                        args.dataset_path,
-                        "test"                    
-                    ),
-                    tsv_file=args.test_path,
-                    node_features_file=args.node_features_test_path,
-                    graphs_folder=args.graphs_test_folder,
-                    dataset_name=dataset_name,
-                    #indexes_file=args.indexes_train_file
-                )
                 
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
+                args.num_features = dataset.num_features            
+                args.num_classes = dataset.num_classes
                 
                 train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                    dataset, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
                     num_workers=0
                 )
                 
@@ -260,18 +249,18 @@ def main(dataset_name_list):
                 
                 args.dataset_path = f"{ROOT_PATH}/simtsc/{args.strategy}_matrix/{dataset_name}"               
 
-                dataset_train = TimeSeriesDataset(                    
+                dataset = TimeSeriesDataset(                    
                     tsv_file=args.train_path,
                 )
                 dataset_test = TimeSeriesDataset(
                     tsv_file=args.test_path,
                 )
                                             
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
+                args.num_features = dataset.num_features            
+                args.num_classes = dataset.num_classes
                 
                 train_dataloader = DataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, num_workers=28
+                    dataset, batch_size=args.batch_size, shuffle=True, num_workers=28
                 )
                 test_dataloader = DataLoader(
                     dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=28
@@ -280,7 +269,7 @@ def main(dataset_name_list):
             elif(args.strategy == "pearson"):
                 args.dataset_path = f"{ROOT_PATH}/pearson/{dataset_name}"
                 args.R = 8
-                dataset_train = CovarianceGraphDataset(
+                dataset = CovarianceGraphDataset(
                     root=os.path.join(
                         args.dataset_path,                    
                         "train"                    
@@ -298,11 +287,11 @@ def main(dataset_name_list):
                     R=args.R,
                 )
                 
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
+                args.num_features = dataset.num_features            
+                args.num_classes = dataset.num_classes
                 
                 train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                    dataset, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
                     num_workers=28
                 )
                 
@@ -323,7 +312,7 @@ def main(dataset_name_list):
                 args.alpha = 0.1
                 args.beta = 0.05                
                 
-                dataset_train = Time2GraphDataset(
+                dataset = Time2GraphDataset(
                     root=os.path.join(
                         args.dataset_path,                    
                         "train"                    
@@ -341,11 +330,11 @@ def main(dataset_name_list):
                     args=args,
                 )
                 
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
+                args.num_features = dataset.num_features            
+                args.num_classes = dataset.num_classes
                 
                 train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                    dataset, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
                     num_workers=28
                 )
                 
