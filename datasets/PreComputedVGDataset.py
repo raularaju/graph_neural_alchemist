@@ -60,7 +60,7 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
         self.num_features = 7
         self.data_type = "processed"
         self.save_path = osp.join(self.root, self.data_type)
-        self.node_features = self.features_df = pd.read_csv(node_features_file, index_col=0)
+        self.features_df = pd.read_csv(node_features_file, index_col=0)
         self.graphs_folder = graphs_folder
         self.graph_files = [
             f for f in os.listdir(graphs_folder)
@@ -73,7 +73,6 @@ class PreComputedVGDataset(dgl.data.DGLDataset):
             self.__time_series = file.readlines()
 
         self.labels = np.array([int(line.split("\t")[0]) for line in self.__time_series])
-        print(f"unique labels: {list(set(self.labels))}")
         self.num_classes = len(np.unique(self.labels))
         self.graph = []
         self.classes = []

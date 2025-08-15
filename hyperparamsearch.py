@@ -3,8 +3,9 @@ from torch.utils.data import Subset, DataLoader
 from dgl.dataloading import GraphDataLoader
 import torch
 import numpy as np
-import pytorch_lightning as pl
-from torchmetrics.functional import f1_score
+from lightning.pytorch import Trainer, seed_everything
+from lightning.pytorch.loggers import TensorBoardLogger
+from torchmetrics.classification import MulticlassF1Score
 import copy
 import os
 from datasets import *
@@ -13,7 +14,10 @@ from utils import get_onehotencoder
 from sklearn.preprocessing import OneHotEncoder
 import optuna
 from config import get_args
-
+from LightningGNN import LightningGNN
+from sklearn.metrics import f1_score 
+from sklearn.model_selection import StratifiedShuffleSplit
+import dgl
 
 def get_model_hyperparams(trial, model_name):
     """Define espaço de busca para hiperparâmetros do modelo."""
@@ -21,7 +25,7 @@ def get_model_hyperparams(trial, model_name):
     if model_name == "SAGE_MLPP_4layer":
         return {
             "nhid": trial.suggest_categorical("nhid", [32, 64, 128, 256]),
-            "agg_type": trial.suggest_categorical("agg_type", ["mean", "max", "lstm"]),
+            "agg_type": trial.suggest_categorical("agg_type", ["mean", "pool", "lstm", "gcn"]),
             "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
             "batch_size": trial.suggest_categorical("batch_size", [16, 32, 64]),
         }
@@ -121,20 +125,14 @@ def create_datasets_with_hyperparams(base_args, dataset_hyperparams, trial_id):
         )
     elif args.strategy == "vg":
         print(f"\n\n Train path: {args.train_path} \n\n")
-        dataset_train = PreComputedVGDataset(
-            root=os.path.join(args.dataset_path, "train"),
+        dataset = PreComputedVGDataset(
+            root=args.dataset_path,
             tsv_file=args.train_path,
             node_features_file=args.node_features_train_path,
             graphs_folder=args.graphs_train_folder,
             dataset_name=args.dataset,
         )
-        dataset_test = PreComputedVGDataset(
-            root=os.path.join(args.dataset_path, "test"),
-            tsv_file=args.test_path,
-            node_features_file=args.node_features_test_path,
-            graphs_folder=args.graphs_test_folder,
-            dataset_name=args.dataset,
-        )
+        
         
     elif args.strategy == "pearson":
         dataset_train = CovarianceGraphDataset(
@@ -159,19 +157,17 @@ def create_datasets_with_hyperparams(base_args, dataset_hyperparams, trial_id):
             tsv_file=args.test_path,
             args=args,
         )
-        
     elif args.strategy in ["simtsc"]:
         dataset_train = TimeSeriesDataset(tsv_file=args.train_path)
         dataset_test = TimeSeriesDataset(tsv_file=args.test_path)
-        
     else:
         raise ValueError(f"Estratégia não suportada: {args.strategy}")
     
     # Atualiza args com informações do dataset
-    args.num_features = dataset_train.num_features
-    args.num_classes = dataset_train.num_classes
+    args.num_features = dataset.num_features
+    args.num_classes = dataset.num_classes
     
-    return dataset_train, dataset_test, args
+    return dataset, args
 
 
 def create_dataloaders(dataset, batch_size, shuffle=True, strategy="vg"):
@@ -185,25 +181,28 @@ def create_dataloaders(dataset, batch_size, shuffle=True, strategy="vg"):
             num_workers=4
         )
     else:
+        with open(args.train_path, "r") as file:
+            lines = file.readlines()
+
+        y_all = np.array([int(line.split("\t")[0]) for line in lines])
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=0.3, random_state=args.seed)
+        for _, sample_indices in sss.split(np.zeros(len(y_all)), y_all):
+            subset = Subset(dataset, sample_indices)
         return GraphDataLoader(
-            dataset, 
+            subset, 
             batch_size=batch_size, 
             shuffle=shuffle, 
-            ddp_seed=42,
+            ddp_seed=args.seed,
             num_workers=4
         )
 
 
-def evaluate_model_cv(model_class, dataset_train, dataset_test, args, cv_folds=5):
+def evaluate_model_cv(model_class, dataset, args, cv_folds=5):
     """Avalia modelo usando cross-validation no dataset de treino."""
-    
     # Extrai labels do dataset
     y_labels = []
-    for i in range(len(dataset_train)):
-        if args.strategy in ["simtsc"]:
-            _, label = dataset_train[i]
-        else:
-            _, label = dataset_train[i]
+    for i in range(len(dataset)):
+        _, label = dataset[i]
         y_labels.append(label.item() if torch.is_tensor(label) else label)
     
     y_labels = np.array(y_labels)
@@ -212,49 +211,52 @@ def evaluate_model_cv(model_class, dataset_train, dataset_test, args, cv_folds=5
     skf = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
     cv_scores = []
     
-    for fold, (train_idx, val_idx) in enumerate(skf.split(range(len(dataset_train)), y_labels)):
+    for fold, (train_idx, val_idx) in enumerate(skf.split(range(len(dataset)), y_labels)):
         print(f"  Fold {fold + 1}/{cv_folds}")
         
         # Cria subsets
-        train_subset = Subset(dataset_train, train_idx)
-        val_subset = Subset(dataset_train, val_idx)
+        train_subset = Subset(dataset, train_idx)
+        val_subset = Subset(dataset, val_idx)
         
         # Cria dataloaders
         train_loader = create_dataloaders(train_subset, args.batch_size, True, args.strategy)
         val_loader = create_dataloaders(val_subset, args.batch_size, False, args.strategy)
         
         # Instancia modelo
-        from LightningGNN import LightningGNN
         model = eval(model_class)(args)
-        lightning_model = LightningGNN(args, model)
         
+        logs_name_path = os.path.join(args.dataset, args.model)
+        
+        tb_logger = TensorBoardLogger(
+                save_dir=os.path.join("lightning_logs", args.save_dir),
+                name=logs_name_path,
+                log_graph=False,
+                default_hp_metric=False,                               
+            )
         # Trainer para CV (menos épocas para speed)
-        trainer = pl.Trainer(
+        trainer = Trainer(
             max_epochs=min(args.epochs, 50),  # Limita épocas para CV
             enable_progress_bar=False,
             enable_model_summary=False,
-            logger=False,
+            logger=tb_logger,
             deterministic=True,
         )
         
         # Treina
-        trainer.fit(lightning_model, train_loader)
+        modulo = LightningGNN(args, model)
+        trainer.fit(modulo, train_dataloaders=train_loader)
         
         # Avalia
-        lightning_model.eval()
+        modulo.eval()
         all_preds, all_labels = [], []
         
         with torch.no_grad():
             for batch in val_loader:
-                if args.strategy in ["simtsc"]:
-                    data, labels = batch
-                    preds = lightning_model(data)
-                else:
-                    graphs, labels = batch
-                    node_features = graphs.ndata['feat']
-                    edge_weights = graphs.edata.get('weight', None)
-                    preds = lightning_model.forward(graphs, node_features, edge_weights)
-                
+                #if args.strategy in ["simtsc"]:
+                graphs, labels = batch
+                node_features = graphs.ndata['feat']
+                preds = modulo.model(graphs, node_features)
+               
                 preds = preds.argmax(dim=1)
                 all_preds.append(preds.cpu())
                 all_labels.append(labels.cpu())
@@ -264,12 +266,11 @@ def evaluate_model_cv(model_class, dataset_train, dataset_test, args, cv_folds=5
         
         # Calcula F1-macro
         f1 = f1_score(
-            all_preds, 
-            all_labels, 
-            average="macro", 
-            num_classes=args.num_classes
-        )
-        cv_scores.append(f1.item())
+                all_labels.numpy(),  # Converte para numpy 
+                all_preds.numpy(),   # Converte para numpy
+                average='macro'      # F1-macro como você usou no RandomizedSearchCV
+            )
+        cv_scores.append(f1)
         print(f"    F1-macro: {f1:.4f}")
     
     mean_score = np.mean(cv_scores)
@@ -288,11 +289,9 @@ def create_objective_complete(base_args, model_class, strategy):
         try:
             # Obtém hiperparâmetros do modelo
             model_hyperparams = get_model_hyperparams(trial, model_class)
-            print(f"Hiperparâmetros do modelo: {model_hyperparams}")
             
             # Obtém hiperparâmetros do dataset
             dataset_hyperparams = get_dataset_hyperparams(trial, strategy)
-            print(f"Hiperparâmetros do dataset: {dataset_hyperparams}")
             
             # Cria args combinados
             trial_args = copy.deepcopy(base_args)
@@ -302,15 +301,14 @@ def create_objective_complete(base_args, model_class, strategy):
                 setattr(trial_args, param, value)
             
             # Cria datasets com novos hiperparâmetros
-            dataset_train, dataset_test, trial_args = create_datasets_with_hyperparams(
+            dataset, trial_args = create_datasets_with_hyperparams(
                 trial_args, dataset_hyperparams, trial.number
             )
             
             # Avalia com cross-validation
             cv_score = evaluate_model_cv(
                 model_class, 
-                dataset_train, 
-                dataset_test, 
+                dataset, 
                 trial_args,
                 cv_folds=5
             )
@@ -332,7 +330,6 @@ def run_hyperparameter_search(base_args, model_class, strategy, n_trials=30):
     """Executa busca de hiperparâmetros completa."""
     
     print(f"Iniciando busca de hiperparâmetros")
-    print(f"Args: {base_args}")
     print(f"Estratégia: {strategy}")
     print(f"Modelo: {model_class}")
     print(f"Número de trials: {n_trials}")
@@ -366,12 +363,24 @@ if __name__ == "__main__":
     
     args = get_args()
     
+    seed_everything(args.seed, workers=True)
+    dgl.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+    dgl.random.seed(args.seed)
+    dgl.seed(args.seed) 
+    torch.use_deterministic_algorithms(True)
+    torch.set_float32_matmul_precision("high")
+    torch.multiprocessing.set_sharing_strategy("file_system")
     # Configura parâmetros base
-    args.dataset = "Phoneme"
+    args.dataset = "ECG200"
     args.strategy = "vg"  
     args.epochs = 250
     ROOT_PATH = args.root_path
     args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{args.dataset}"
+    args.train_path = f"{ROOT_PATH}/{args.dataset}/{args.dataset}_MERGED.tsv"
     
     # Executa busca
     best_params, best_score = run_hyperparameter_search(
