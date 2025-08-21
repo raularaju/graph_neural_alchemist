@@ -3,6 +3,7 @@ SenhazonaBolada 8==D
 sudo docker build -t graph-neural-alchemist .
 sudo docker run --gpus all -it --rm -v /scratch/raularaju/POC/data:/app/data/datasets graph-neural-alchemist
 
-python run.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32  --nhid 128 --epochs 5 --save_dir vg_sage_mlpp_4layer --root_path data/datasets/UCRArchive_2018 --graphs_train_folder=data/datasets/visibility_graphs/ECG200/TRAIN --node_features_train_path=data/datasets/node_features/ECG200/ECG200_TRAIN.csv --graphs_test_folder=data/datasets/visibility_graphs/ECG200/TEST --node_features_test_path=data/datasets/node_features/ECG200/ECG200_TEST.csv
 
-python hyperparamsearch.py --strategy vg --model SAGE_MLPP_4layer --batch_size 32  --nhid 128 --epochs 5 --save_dir vg_sage_mlpp_4layer --root_path data/datasets/merged_datasets --graphs_train_folder=data/datasets/merged_datasets/ECG200/visibility_graphs/ --node_features_train_path=data/datasets/merged_datasets/ECG200/ECG200_NODE_FEATURES_MERGED.csv 
+python run.py --strategy vg --model SAGE_MLPP_4layer --lr 0.0001 --batch_size 64  --nhid 64 --epochs 250 --save_dir vg_sage_mlpp_4layer --root_path data/datasets/UCRArchive_2018 --graphs_train_folder=data/datasets/visibility_graphs/ECG200/TRAIN --node_features_train_path=data/datasets/node_features/ECG200/ECG200_TRAIN.csv --graphs_test_folder=data/datasets/visibility_graphs/ECG200/TEST --node_features_test_path=data/datasets/node_features/ECG200/ECG200_TEST.csv 
+
+python hyperparamsearch.py --strategy vg --model SAGE_MLPP_4layer --save_dir vg_sage_mlpp_4layer --root_path data/datasets/merged_datasets --graphs_train_folder=data/datasets/merged_datasets/ECG200/visibility_graphs/ --node_features_train_path=data/datasets/merged_datasets/ECG200/ECG200_NODE_FEATURES_MERGED.csv --dataset ECG200

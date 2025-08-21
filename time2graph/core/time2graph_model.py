@@ -28,7 +28,6 @@ class Time2Graph(ModelUtils):
         super(Time2Graph, self).__init__(kernel="xgb")
         self.K = args.K
         self.C = args.C
-        self.C = args.C
         self.seg_length = args.seg_length
         self.num_segment = args.num_segment
         self.data_size = args.data_size
