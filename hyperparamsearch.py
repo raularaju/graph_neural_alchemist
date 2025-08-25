@@ -19,7 +19,7 @@ from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedShuffleSplit
 import dgl
 import json
-
+import time
 
 NUM_TRIALS = 30
 MAX_EPOCHS = 250
@@ -111,6 +111,8 @@ def create_datasets_with_hyperparams(base_args, dataset_hyperparams, trial_id):
         args.dataset_path = f"{args.root_path}/transition_pattern_graphs_encoded/{args.dataset}_oplength_{args.op_length}"
     elif args.strategy == "pearson":
         args.dataset_path = f"{args.root_path}/pearson/{args.dataset}"
+    elif args.strategy == "vg":
+        args.dataset_path = f"{args.root_path}/visibility_graphs/{args.dataset}"
     elif args.strategy == "time2graph":
         args.dataset_path = f"{args.root_path}/time2graph/{args.dataset}"
     
@@ -281,7 +283,8 @@ def create_objective_complete(base_args, model_class, strategy):
     
     def objective(trial):
         print(f"\nTrial {trial.number}")
-        
+        start_time = time.time()
+
         try:
             # Obtém hiperparâmetros do modelo
             model_hyperparams = get_model_hyperparams(trial, model_class)
@@ -310,6 +313,7 @@ def create_objective_complete(base_args, model_class, strategy):
             )
             
             print(f"Score final: {cv_score:.4f}")
+            print(f"Tempo total trial {trial.number}: {time.time() - start_time:.2f} segundos")
             return cv_score
             
         except Exception as e:
@@ -379,11 +383,9 @@ if __name__ == "__main__":
     setup(args)
 
     # Configura parâmetros base
-    ROOT_PATH = args.root_path
-    args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{args.dataset}"
-    args.train_path = f"{ROOT_PATH}/{args.dataset}/{args.dataset}_MERGED.tsv"
-    
+    args.train_path = f"{args.root_path}/{args.dataset}/{args.dataset}_MERGED.tsv"
     # Executa busca
+    start_time = time.time()
     best_params, best_score = run_hyperparameter_search(
         args, 
         n_trials=NUM_TRIALS
@@ -394,11 +396,11 @@ if __name__ == "__main__":
         "best_params": best_params,
         "best_score": best_score
     }
-    results_dir = os.path.join("data", "best_hyperparams", args.dataset, args.strategy, args.model)
+    results_dir = os.path.join("data", "datasets", "best_hyperparams", args.dataset, args.strategy, args.model)
     os.makedirs(results_dir, exist_ok=True)
     with open(os.path.join(results_dir, "best_hyperparams.json"), "w") as f:
         json.dump(results, f, indent=4)
-    
-    print(f"\nBusca finalizada!")
+
+    print(f"\nBusca finalizada em {time.time() - start_time:.2f} segundos")
     print(f"Melhor F1-macro: {best_score:.4f}")
     print(f"Melhores parâmetros: {best_params}")

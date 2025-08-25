@@ -45,7 +45,7 @@ class LightningGNN(pl.LightningModule):
         test_step: Executa uma etapa de teste
     """
 
-    def __init__(self, args, model):
+    def __init__(self, args, model, save_path = None):
         """
         Inicializa o módulo Lightning GNN.
 
@@ -61,6 +61,10 @@ class LightningGNN(pl.LightningModule):
         self.training_metrics = {"true": [], "loss": []}
         self.validation_metrics = {"pred": [], "true": [], "loss": []}
         self.test_metrics = {"pred": [], "true": [], "loss": []}
+        if save_path is None:
+            self.save_path = os.path.join("lightning_logs", self.args.save_dir, self.args.dataset, self.args.model)
+        else:
+            self.save_path = save_path
         args.model_architecture = self.model.__str__().replace("\n", "")
         self.save_hyperparameters(args)    
         
@@ -344,13 +348,13 @@ class LightningGNN(pl.LightningModule):
         y_true = torch.stack(self.test_metrics["true"]).cpu().numpy()
         
         #save the predictions and true labels for further analysis
-        save_path = os.path.join("lightning_logs", self.args.save_dir, self.args.dataset, self.args.model)
         
-        with open(f"{save_path}/predictions_best_model.csv", "w") as file:
+        os.makedirs(self.save_path, exist_ok=True)
+        with open(f"{self.save_path}/predictions_best_model.csv", "w") as file:
             file.write("pred,true\n")
             for i in range(len(y_pred)):
                 file.write(f"{y_pred[i]},{y_true[i]}\n")
-            print(f"====> Predictions saved to {save_path}/predictions_best_model.csv <====")
+            print(f"====> Predictions saved to {self.save_path}/predictions_best_model.csv <====")
             
         test_confusion_matrix = self.__cria_matriz_confusao(
             y_pred=y_pred, y_true=y_true

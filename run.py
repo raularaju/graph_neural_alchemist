@@ -15,7 +15,8 @@ from lightning.pytorch.loggers import TensorBoardLogger
 
 from torchmetrics.functional import f1_score
 from time2graph.run_time2graph_plus import run_time2graphplus
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedShuffleSplit
+
 
 from datasets import *
 from models import *
@@ -43,6 +44,7 @@ args = get_args()
 ROOT_PATH = args.root_path
 TRAIN_PATH = args.train_path
 TEST_PATH = args.test_path
+N_SPLITS = 30
 # define the logger
 if not os.path.exists("logs"):
     os.makedirs("logs")
@@ -61,10 +63,17 @@ main_logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 main_logger.addHandler(console_handler)
 
-with open("parameters.json", "r") as f:
-    PROJECT_PARAMS = json.load(f)
+VALID_STRATEGIES = [
+        "op",
+        "encoded_gtpo", 
+        "vg",
+        "simtsc",
+        "pearson",
+        "time2graph",
+        "time2graphplus"
+    ]
 
-def main(dataset_name_list):
+def main(dataset_name, train_idx, test_idx, split_index):
     """
     Função principal que executa experimentos de classificação de séries temporais usando grafos.
     
@@ -116,283 +125,264 @@ def main(dataset_name_list):
     
     main_logger.info("Using " + str(torch.cuda.device_count()) + " GPU(s)!")
     
-    for dataset_name in dataset_name_list:
-        start_time = time.time()
-        main_logger.info(f"Dataset: {dataset_name}")
-        args.dataset = dataset_name
+    start_time = time.time()
+    main_logger.info(f"Dataset: {dataset_name}")
+    args.dataset = dataset_name
+    
+    try:
+        callbacks = [
+            ModelCheckpoint(
+                monitor="train_loss", save_top_k=1, mode="min", verbose=True
+            ),
+            ModelSummary(max_depth=-1),
+        ]
         
-        try:
-            callbacks = [
-                ModelCheckpoint(
-                    monitor="train_loss", save_top_k=1, mode="min", verbose=True
+        if args.early_stopping:
+            main_logger.info(f"Using early stopping with patience {args.patience}")
+            callbacks.append(EarlyStopping(monitor="train_loss", patience=args.patience))            
+
+        
+        if args.strategy not in VALID_STRATEGIES:
+            main_logger.error(f"Time2Graph strategy {args.strategy} não implementada")
+            return
+        
+        if(args.strategy == "op"):            
+            args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs/{dataset_name}_oplength_{args.op_length}"                
+            dataset_train = GTPODataset(
+                root=os.path.join(
+                    args.dataset_path,                    
+                    "train"                    
                 ),
-                ModelSummary(max_depth=-1),
-            ]
-            
-            if args.early_stopping:
-                main_logger.info(f"Using early stopping with patience {args.patience}")
-                callbacks.append(EarlyStopping(monitor="train_loss", patience=args.patience))            
+                tsv_file=args.train_path,
+                op_length=args.op_length,
+            )
 
-            args.train_path = f"{ROOT_PATH}/{dataset_name}/{dataset_name}_TRAIN.tsv"
-            args.test_path = f"{ROOT_PATH}/{dataset_name}/{dataset_name}_TEST.tsv" 
+            dataset_test = GTPODataset(
+                root=os.path.join(
+                    args.dataset_path,
+                    "test"                    
+                ),
+                tsv_file=args.test_path,
+                op_length=args.op_length,
+            )
+                
+            args.num_features = dataset_train.num_features            
+            args.num_classes = dataset_train.num_classes
             
-            if args.strategy not in PROJECT_PARAMS["valid_strategies"]:
-                main_logger.error(f"Time2Graph strategy {args.strategy} não implementada")
+            train_dataloader = GraphDataLoader(
+                dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                num_workers=28
+            )
+
+            test_dataloader = GraphDataLoader(
+                dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
+                num_workers=28
+            )            
+        
+        elif(args.strategy == "encoded_gtpo"):            
+            args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs_encoded/{dataset_name}_oplength_{args.op_length}"
+            
+            if not os.path.exists(os.path.join(args.dataset_path, "train")):                
+                encoder = get_onehotencoder(args.train_path, args.test_path, args.op_length)
+            else:
+                encoder = OneHotEncoder(sparse_output=False)
+            
+            dataset_train = encodedGTPODataset(
+                root=os.path.join(
+                    args.dataset_path,                    
+                    "train"                    
+                ),
+                encoder=encoder,
+                tsv_file=args.train_path,
+                op_length=args.op_length,
+            )
+            
+            dataset_test = encodedGTPODataset(
+                root=os.path.join(
+                    args.dataset_path,
+                    "test"                    
+                ),
+                tsv_file=args.test_path,
+                encoder=encoder,
+                op_length=args.op_length,
+            )
+            
+            args.num_features = dataset_train.num_features            
+            args.num_classes = dataset_train.num_classes
+            
+            train_dataloader = GraphDataLoader(
+                dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                num_workers=28
+            )
+            
+            test_dataloader = GraphDataLoader(
+                dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
+                num_workers=28
+            )            
+        
+        elif(args.strategy == "vg"):
+            args.dataset_path = f"{ROOT_PATH}/visibility_graphs/{dataset_name}"
+            dataset = PreComputedVGDataset(
+                root=args.dataset_path,                    
+                tsv_file=args.train_path,
+                node_features_file=args.node_features_train_path,
+                graphs_folder=args.graphs_train_folder,
+                dataset_name=dataset_name,
+            )
+            
+            args.num_features = dataset.num_features            
+            args.num_classes = dataset.num_classes
+            train_dataloader = GraphDataLoader(
+                Subset(dataset, train_idx), batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                num_workers=0
+            )
+            
+            test_dataloader = GraphDataLoader(
+                Subset(dataset, test_idx), batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
+                num_workers=0
+            )
+
+        elif(args.strategy in ["simtsc"]):
+            if(args.model not in ["simTSC_GCN", "simTSC_SAGE"]):
+                main_logger.error(f"Modelo {args.model} não implementado para estratégia {args.strategy}. Favor usar simTSC_GCN ou simTSC_SAGE")
                 return
             
-            if(args.strategy == "op"):            
-                args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs/{dataset_name}_oplength_{args.op_length}"                
-                dataset_train = GTPODataset(
-                    root=os.path.join(
-                        args.dataset_path,                    
-                        "train"                    
-                    ),
-                    tsv_file=args.train_path,
-                    op_length=args.op_length,
-                )
+            args.dataset_path = f"{ROOT_PATH}/simtsc/{args.strategy}_matrix/{dataset_name}"               
+            
+            dataset_train = TimeSeriesDataset(                    
+                tsv_file=args.train_path,
+            )
 
-                dataset_test = GTPODataset(
-                    root=os.path.join(
-                        args.dataset_path,
-                        "test"                    
-                    ),
-                    tsv_file=args.test_path,
-                    op_length=args.op_length,
-                )
+            dataset_test = TimeSeriesDataset(
+                tsv_file=args.test_path,
+            )
+                                     
+            args.num_features = dataset_train.num_features            
+            args.num_classes = dataset_train.num_classes
+            
+            train_dataloader = DataLoader(
+                dataset_train, batch_size=args.batch_size, shuffle=True, num_workers=28
+            )
+            test_dataloader = DataLoader(
+                dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=28
+            )    
                 
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
-                
-                train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
-                    num_workers=28
-                )
-                
-                test_dataloader = GraphDataLoader(
-                    dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
-                    num_workers=28
-                )            
+        elif(args.strategy == "pearson"):
+            args.dataset_path = f"{ROOT_PATH}/pearson/{dataset_name}"
+            args.R = 8
+            dataset_train = CovarianceGraphDataset(
+                root=os.path.join(
+                    args.dataset_path,                    
+                    "train"                    
+                ),
+                tsv_file=args.train_path,
+                R=args.R,
+            )
+            
+            dataset_test = CovarianceGraphDataset(
+                root=os.path.join(
+                    args.dataset_path,
+                    "test"                    
+                ),
+                tsv_file=args.test_path,
+                R=args.R,
+            )
+            
+            args.num_features = dataset_train.num_features            
+            args.num_classes = dataset_train.num_classes
+            
+            train_dataloader = GraphDataLoader(
+                dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                num_workers=28
+            )
+            
+            test_dataloader = GraphDataLoader(
+                dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
+                num_workers=28
+            )
 
-            elif(args.strategy == "encoded_gtpo"):            
-                args.dataset_path = f"{ROOT_PATH}/transition_pattern_graphs_encoded/{dataset_name}_oplength_{args.op_length}"
-                
-                if not os.path.exists(os.path.join(args.dataset_path, "train")):                
-                    encoder = get_onehotencoder(args.train_path, args.test_path, args.op_length)
-                else:
-                    encoder = OneHotEncoder(sparse_output=False)
-                
-                dataset_train = encodedGTPODataset(
-                    root=os.path.join(
-                        args.dataset_path,                    
-                        "train"                    
-                    ),
-                    encoder=encoder,
-                    tsv_file=args.train_path,
-                    op_length=args.op_length,
-                )
+        elif(args.strategy == "time2graph"):
+            args.dataset_path = f"{ROOT_PATH}/time2graph/{dataset_name}"
+            args.dataset = dataset_name
+            args.K = 50
+            args.C = 800
+            args.seg_length = 24
+            args.num_segment = 10
+            # args.time_aware_shapelets_lr = 0.1
+            args.percentile = 80
+            args.alpha = 0.1
+            args.beta = 0.05                
+            
+            dataset_train = Time2GraphDataset(
+                root=os.path.join(
+                    args.dataset_path,                    
+                    "train"                    
+                ),
+                tsv_file=args.train_path,
+                args=args,
+            )
+            
+            dataset_test = Time2GraphDataset(
+                root=os.path.join(
+                    args.dataset_path,
+                    "test"                    
+                ),
+                tsv_file=args.test_path,
+                args=args,
+            )
+            
+            args.num_features = dataset_train.num_features            
+            args.num_classes = dataset_train.num_classes
+            
+            train_dataloader = GraphDataLoader(
+                dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
+                num_workers=28
+            )
+            
+            test_dataloader = GraphDataLoader(
+                dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
+                num_workers=28
+            )
+            
+        elif(args.strategy == "time2graphplus"):
+            args.dataset_path = f"{ROOT_PATH}/time2graphplus/{dataset_name}"
+            args.K = 50
+            args.C = 800
+            args.seg_length = 24
+            args.num_segment = 10
+            args.time_aware_shapelets_lr = 0.1
+            args.percentile = 80
+            args.alpha = 0.1
+            args.beta = 0.05
+            args.save_dir = os.path.join("lightning_logs", args.save_dir, dataset_name)               
+            
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+            
+            init_time = time.time()
+            run_time2graphplus(args)
 
-                dataset_test = encodedGTPODataset(
-                    root=os.path.join(
-                        args.dataset_path,
-                        "test"                    
-                    ),
-                    tsv_file=args.test_path,
-                    encoder=encoder,
-                    op_length=args.op_length,
-                )
-                
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
-                
-                train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
-                    num_workers=28
-                )
-                
-                test_dataloader = GraphDataLoader(
-                    dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
-                    num_workers=28
-                )            
+            print("Tempo de execução: ", time.time() - init_time)
+            return
+                    
+        if(args.model == None):
+            main_logger.error(f"Modelo não definido")
+            return
+        
+        run_train_test(dataset_name, callbacks, train_dataloader, test_dataloader, split_index)
+        
+        main_logger.info(f"Tempo de execução: {(time.time() - start_time):.2f} segundos")
             
-            elif(args.strategy == "vg"):
-                args.dataset_path = f"{ROOT_PATH}/visibility_graphs/signal_as_feat/{dataset_name}"
-                dataset_train = PreComputedVGDataset(
-                    root=os.path.join(
-                        args.dataset_path,                    
-                        "train"                    
-                    ),
-                    tsv_file=args.train_path,
-                    node_features_file=args.node_features_train_path,
-                    graphs_folder=args.graphs_train_folder,
-                    dataset_name=dataset_name,
-                    #indexes_file=args.indexes_train_file
-                )
-                
-                dataset_test = PreComputedVGDataset(
-                    root=os.path.join(
-                        args.dataset_path,
-                        "test"                    
-                    ),
-                    tsv_file=args.test_path,
-                    node_features_file=args.node_features_test_path,
-                    graphs_folder=args.graphs_test_folder,
-                    dataset_name=dataset_name,
-                    #indexes_file=args.indexes_train_file
-                )
-                
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
-                
-                train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
-                    num_workers=0
-                )
-                
-                test_dataloader = GraphDataLoader(
-                    dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
-                    num_workers=0
-                )
-            
-            elif(args.strategy in ["simtsc"]):
-                if(args.model not in ["simTSC_GCN", "simTSC_SAGE"]):
-                    main_logger.error(f"Modelo {args.model} não implementado para estratégia {args.strategy}. Favor usar simTSC_GCN ou simTSC_SAGE")
-                    return
-                
-                args.dataset_path = f"{ROOT_PATH}/simtsc/{args.strategy}_matrix/{dataset_name}"               
+    except Exception as e:            
+        main_logger.error(f"Erro ao executar o dataset {dataset_name}: {e.__str__}:")
+        main_logger.error(traceback.format_exc())
 
-                dataset_train = TimeSeriesDataset(                    
-                    tsv_file=args.train_path,
-                )
-                dataset_test = TimeSeriesDataset(
-                    tsv_file=args.test_path,
-                )
-                                            
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
-                
-                train_dataloader = DataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, num_workers=28
-                )
-                test_dataloader = DataLoader(
-                    dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=28
-                )    
-                
-            elif(args.strategy == "pearson"):
-                args.dataset_path = f"{ROOT_PATH}/pearson/{dataset_name}"
-                args.R = 8
-                dataset_train = CovarianceGraphDataset(
-                    root=os.path.join(
-                        args.dataset_path,                    
-                        "train"                    
-                    ),
-                    tsv_file=args.train_path,
-                    R=args.R,
-                )
-                
-                dataset_test = CovarianceGraphDataset(
-                    root=os.path.join(
-                        args.dataset_path,
-                        "test"                    
-                    ),
-                    tsv_file=args.test_path,
-                    R=args.R,
-                )
-                
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
-                
-                train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
-                    num_workers=28
-                )
-                
-                test_dataloader = GraphDataLoader(
-                    dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
-                    num_workers=28
-                )
-
-            elif(args.strategy == "time2graph"):
-                args.dataset_path = f"{ROOT_PATH}/time2graph/{dataset_name}"
-                args.dataset = dataset_name
-                args.K = 50
-                args.C = 800
-                args.seg_length = 24
-                args.num_segment = 10
-                # args.time_aware_shapelets_lr = 0.1
-                args.percentile = 80
-                args.alpha = 0.1
-                args.beta = 0.05                
-                
-                dataset_train = Time2GraphDataset(
-                    root=os.path.join(
-                        args.dataset_path,                    
-                        "train"                    
-                    ),
-                    tsv_file=args.train_path,
-                    args=args,
-                )
-                
-                dataset_test = Time2GraphDataset(
-                    root=os.path.join(
-                        args.dataset_path,
-                        "test"                    
-                    ),
-                    tsv_file=args.test_path,
-                    args=args,
-                )
-                
-                args.num_features = dataset_train.num_features            
-                args.num_classes = dataset_train.num_classes
-                
-                train_dataloader = GraphDataLoader(
-                    dataset_train, batch_size=args.batch_size, shuffle=True, ddp_seed=args.seed,
-                    num_workers=28
-                )
-                
-                test_dataloader = GraphDataLoader(
-                    dataset_test, batch_size=args.batch_size, shuffle=False, ddp_seed=args.seed,
-                    num_workers=28
-                )
-            
-            elif(args.strategy == "time2graphplus"):
-                args.dataset_path = f"{ROOT_PATH}/time2graphplus/{dataset_name}"
-                args.K = 50
-                args.C = 800
-                args.seg_length = 24
-                args.num_segment = 10
-                args.time_aware_shapelets_lr = 0.1
-                args.percentile = 80
-                args.alpha = 0.1
-                args.beta = 0.05
-                args.save_dir = os.path.join("lightning_logs", args.save_dir, dataset_name)               
-                
-                os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-                
-                init_time = time.time()
-                run_time2graphplus(args)               
-                
-                print("Tempo de execução: ", time.time() - init_time)
-                continue
-            
-            if(args.model == None):
-                main_logger.error(f"Modelo não definido")
-                return
-            
-            run_train_test(dataset_name, callbacks, train_dataloader, test_dataloader)
-            
-            main_logger.info(f"Tempo de execução: {(time.time() - start_time):.2f} segundos")
-            
-        except Exception as e:            
-            main_logger.error(f"Erro ao executar o dataset {dataset_name}: {e.__str__}:")
-            main_logger.error(traceback.format_exc())
-
-def run_train_test(dataset_name, callbacks, train_dataloader, test_dataloader):
+def run_train_test(dataset_name, callbacks, train_dataloader, test_dataloader, split_index):
     model = eval(args.model)(args)
 
     logs_name_path = os.path.join(dataset_name, args.model)
             
     tb_logger = TensorBoardLogger(
-                save_dir=os.path.join("lightning_logs", args.save_dir),
+                save_dir=os.path.join("lightning_logs", args.save_dir, f"split_{split_index}"),
                 name=logs_name_path,
                 log_graph=False,
                 default_hp_metric=False,                               
@@ -413,13 +403,22 @@ def run_train_test(dataset_name, callbacks, train_dataloader, test_dataloader):
                 log_every_n_steps = 20,
             )
 
-    modulo = LightningGNN(args, model)            
+    predictions_path = os.path.join("data", "datasets", "evaluation_gnn", args.dataset, args.strategy, args.model,  f"split_{split_index}")
+    modulo = LightningGNN(args, model, save_path=predictions_path)         
     trainer.fit(modulo, train_dataloaders=train_dataloader)
             
     if not args.fast_dev_run:                           
         trainer.test(dataloaders=test_dataloader, verbose=True, ckpt_path= "best")
 
 
-if __name__ == "__main__":     
-    dataset_name_list = PROJECT_PARAMS["datasets"]
-    main(dataset_name_list)
+if __name__ == "__main__":
+
+    args.train_path = f"{ROOT_PATH}/{args.dataset}/{args.dataset}_MERGED.tsv"
+    with open(args.train_path, "r") as file:
+            lines = file.readlines()
+    labels = np.array([int(line.split("\t")[0]) for line in lines])
+    sss = StratifiedShuffleSplit(n_splits=N_SPLITS, test_size=0.2, random_state=0)
+    splits = list(sss.split(np.zeros(len(labels)), labels))
+    for i, (train_index, test_index) in enumerate(splits):
+        print(f"Split {i + 1} / {N_SPLITS}")
+        main(args.dataset, train_index, test_index, i)

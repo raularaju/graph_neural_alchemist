@@ -1,6 +1,6 @@
 {
     "datasets": [
-        "ECG200"        
+        "Strawberry"        
     ]
     ,
     "valid_strategies": [
@@ -9,6 +9,7 @@
         "vg",
         "simtsc",
         "pearson",
+        "time2graph",
         "time2graphplus"
     ]
 }
